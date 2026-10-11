@@ -38,6 +38,7 @@ GameGuard ships as a **single self-contained `GameGuard.exe`** (no .NET install 
 | **Double-click** | Setup window — set the parent code and Install / Update / Uninstall. Self-elevates (one UAC prompt) for the privileged steps. |
 | *(run as a service)* | SYSTEM enforcement worker — process blocking + `hosts` injection; serves the hardened named pipe (`GameGuardPipe`). |
 | `--agent` | Per-session tray app — controller tray icon, status/unlock menu, and a notification when a game is blocked. Started at logon for standard users. |
+| `--preview` | Opens a sample blocked-game popup for UI work. It does not contact the service or unlock games. |
 | `--admin` | Settings window — edit the PBKDF2-hashed unlock code and the game/folder/domain blocklist in `C:\ProgramData\GameGuard\config.json`. |
 | `--install` / `--uninstall` | The elevated install/uninstall steps (invoked by the setup window). |
 
@@ -62,7 +63,7 @@ Download the newer `GameGuard.exe`, run it, and click **Update** (approve the UA
 
 ## Building the EXE (for developers)
 
-Prerequisites: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) and Windows 10/11 (x64).
+Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Windows 10/11 (x64).
 
 ```powershell
 .\install\Build-GameGuard.ps1

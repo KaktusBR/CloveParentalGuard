@@ -45,6 +45,11 @@ static class TrayApp
             openWindow = form;
             form.Show();
             form.Activate();
+            if (blockedGame is not null)
+            {
+                form.TopMost = true;
+                form.BringToFront();
+            }
         }
 
         var tray = new NotifyIcon

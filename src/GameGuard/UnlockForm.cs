@@ -20,7 +20,8 @@ public class UnlockForm : Form
     private readonly Label _status = new();
     private readonly System.Windows.Forms.Timer _closeTimer = new() { Interval = 1300 };
 
-    public UnlockForm(PipeClient client, IEnumerable<int> durations, string? blockedGame = null)
+    public UnlockForm(PipeClient client, IEnumerable<int> durations, string? blockedGame = null,
+        bool previewMode = false)
     {
         _client = client;
         var blocked = !string.IsNullOrWhiteSpace(blockedGame);
@@ -64,20 +65,27 @@ public class UnlockForm : Form
             Font = App.Theme.Body(),
             ForeColor = App.Theme.Secondary,
             Text = blocked
-                ? "Games are locked right now. A parent can unlock below."
+                ? $"GameGuard closed {blockedGame} because games are locked. Call a parent if you want to play. A parent can enter the code below to unlock games."
                 : "Enter the parent code and choose how long to allow games.",
             Margin = new Padding(0, 0, 0, 20),
         };
 
         _code.Width = ContentWidth;
         _code.Margin = new Padding(0, 0, 0, 18);
+        if (previewMode) _code.Enabled = false;
 
         _durations.Margin = new Padding(0, 0, 0, 22);
         _durations.SetDurations(durations);
+        if (previewMode) _durations.Enabled = false;
 
         _unlock.Width = ContentWidth;
+        if (previewMode) _unlock.Text = "Close preview";
         _unlock.Margin = new Padding(0, 0, 0, 12);
-        _unlock.Click += (_, _) => DoUnlock();
+        _unlock.Click += (_, _) =>
+        {
+            if (previewMode) Close();
+            else DoUnlock();
+        };
 
         _status.AutoSize = true;
         _status.MaximumSize = new Size(ContentWidth, 0);
@@ -97,7 +105,7 @@ public class UnlockForm : Form
         });
         Controls.Add(root);
 
-        Shown += (_, _) => _code.Box.Focus();
+        Shown += (_, _) => { if (_code.Enabled) _code.Box.Focus(); };
     }
 
     private void DoUnlock()

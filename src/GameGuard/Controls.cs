@@ -5,7 +5,7 @@ namespace GameGuard.App;
 /// <summary>Flat, rounded, custom-painted button. Primary = filled accent, else subtle gray.</summary>
 class PillButton : Button
 {
-    public bool Primary { get; set; } = true;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public bool Primary { get; set; } = true;
     private bool _hover, _down;
 
     public PillButton()
@@ -53,9 +53,9 @@ class PillButton : Button
 /// <summary>A rounded surface — used as a card and as the background of inputs.</summary>
 class RoundedPanel : Panel
 {
-    public float Radius { get; set; } = 12f;
-    public Color Fill { get; set; } = Theme.Surface;
-    public Color Stroke { get; set; } = Color.Transparent;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public float Radius { get; set; } = 12f;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Color Fill { get; set; } = Theme.Surface;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public Color Stroke { get; set; } = Color.Transparent;
 
     public RoundedPanel()
     {
@@ -189,7 +189,7 @@ class DurationPicker : FlowLayoutPanel
     {
         public int Minutes { get; }
         private bool _selected;
-        public bool Selected { get => _selected; set { _selected = value; Invalidate(); } }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public bool Selected { get => _selected; set { _selected = value; Invalidate(); } }
 
         public Pill(int minutes)
         {

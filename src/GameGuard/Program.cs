@@ -37,6 +37,19 @@ static class Program
                 TrayApp.Run();
                 return 0;
 
+            case "--preview":
+                ApplicationConfiguration.Initialize();
+                var preview = new GameGuard.Agent.UnlockForm(
+                    new GameGuard.Agent.PipeClient(Constants.PipeName),
+                    new[] { 30, 60, 120, 180 },
+                    "Minecraft.exe",
+                    previewMode: true)
+                {
+                    TopMost = true,
+                };
+                Application.Run(preview);
+                return 0;
+
             case "--admin":
                 ApplicationConfiguration.Initialize();
                 Application.Run(new AdminForm());

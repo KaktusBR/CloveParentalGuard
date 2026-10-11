@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace GameGuard.Core;
 
@@ -27,6 +28,19 @@ public static class BlocklistMatcher
                     string root;
                     try { root = NormalizeDir(Path.GetFullPath(folder)); }
                     catch { continue; }
+
+                    if (root.Contains('*'))
+                    {
+                        // A single * matches one path segment, allowing rules such as
+                        // C:\Users\*\AppData\Roaming\.minecraft without blocking javaw.exe globally.
+                        var pattern = "^" + Regex.Escape(root)
+                            .Replace(@"\*", @"[^\\]*", StringComparison.Ordinal)
+                            + @"(?:\\.*)?$";
+                        if (Regex.IsMatch(full, pattern,
+                            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                            return true;
+                        continue;
+                    }
 
                     if (full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                         || full.Equals(root, StringComparison.OrdinalIgnoreCase))
