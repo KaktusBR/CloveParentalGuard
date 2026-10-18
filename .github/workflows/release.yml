@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v1.0.0 to build GameGuard.exe and attach it to a GitHub release.
+# Push a tag like v1.0.0 to build CloveParentalGuard.exe and attach it to a GitHub release.
 on:
   push:
     tags: ["v*"]
@@ -19,14 +19,14 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Test
-        run: dotnet test tests/GameGuard.Core.Tests -c Release
+        run: dotnet test tests/CloveParentalGuard.Core.Tests -c Release
 
-      - name: Build GameGuard.exe
+      - name: Build CloveParentalGuard.exe
         shell: pwsh
-        run: ./install/Build-GameGuard.ps1
+        run: ./install/Build-CloveParentalGuard.ps1
 
       - name: Create release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ github.ref_name }}" publish/GameGuard.exe --generate-notes --title "${{ github.ref_name }}"
+        run: gh release create "${{ github.ref_name }}" publish/CloveParentalGuard.exe --generate-notes --title "${{ github.ref_name }}"

@@ -1,4 +1,4 @@
-# GameGuard — Design
+# CloveParentalGuard — Design
 
 **Date:** 2026-06-28
 **Status:** Approved design, pending implementation plan
@@ -15,7 +15,7 @@ timer expires, blocking resumes automatically.
 ## Enforcement model
 
 - **Parent / child PC.** An administrator (parent) installs and configures
-  GameGuard. The child uses a **standard Windows account** and cannot stop,
+  CloveParentalGuard. The child uses a **standard Windows account** and cannot stop,
   pause, or uninstall the service. The parent holds the unlock code.
 
 ## Architecture
@@ -24,13 +24,13 @@ A Windows service runs in isolated Session 0 and cannot draw UI on the user's
 desktop. The system therefore splits into two cooperating components plus an
 admin tool.
 
-### 1. GameGuard Service (the enforcer)
+### 1. CloveParentalGuard Service (the enforcer)
 - Runs as **LocalSystem (SYSTEM)**, **auto-start**, with **failure recovery**
   configured to restart automatically if killed.
 - Service ACL prevents a standard user from stopping/pausing/uninstalling it.
 - Responsibilities:
   - Read configuration (blocklist, hashed code, durations) from
-    `C:\ProgramData\GameGuard\`.
+    `C:\ProgramData\CloveParentalGuard\`.
   - Scan running processes on an interval (~2s) and terminate blocked processes
     while locked.
   - Manage the hosts file for browser-game domain blocking.
@@ -40,7 +40,7 @@ admin tool.
 - **This is the only security-relevant component.** All trust decisions
   (code verification, lock state, timer) happen here.
 
-### 2. GameGuard Agent (UI only)
+### 2. CloveParentalGuard Agent (UI only)
 - Small tray application that **auto-starts in the child's user session**
   (per-user Run key or scheduled task at logon).
 - Responsibilities:
@@ -51,7 +51,7 @@ admin tool.
   named pipe. If the child kills the agent, enforcement continues unaffected and
   the agent respawns.
 
-### 3. GameGuard Admin (configuration tool)
+### 3. CloveParentalGuard Admin (configuration tool)
 - A separate desktop tool that **requires UAC elevation** (admin only), so the
   child's standard account cannot run it.
 - Responsibilities:
@@ -89,8 +89,8 @@ config) and decides whether to unlock.
   curated list of gaming domains (e.g. `poki.com`, `crazygames.com`,
   `miniclip.com`, `roblox.com`, `now.gg`) at `0.0.0.0`.
 - While **unlocked**, those entries are removed.
-- GameGuard's hosts edits live between clearly marked sentinel lines
-  (`# BEGIN GameGuard` / `# END GameGuard`) so the rest of the hosts file is
+- CloveParentalGuard's hosts edits live between clearly marked sentinel lines
+  (`# BEGIN CloveParentalGuard` / `# END CloveParentalGuard`) so the rest of the hosts file is
   preserved.
 
 ## Unlock flow
@@ -113,7 +113,7 @@ sites share the same lock state and timer.
 
 ## Data / configuration
 
-- Location: `C:\ProgramData\GameGuard\` (admin-writable; readable by service).
+- Location: `C:\ProgramData\CloveParentalGuard\` (admin-writable; readable by service).
 - `config.json`: blocklist (exe names, folder roots, domains), available
   durations, settings.
 - Code stored as `{salt, pbkdf2Hash, iterations}` — never plaintext.

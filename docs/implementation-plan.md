@@ -1,10 +1,10 @@
-# GameGuard Implementation Plan
+# CloveParentalGuard Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Windows game-blocker: a SYSTEM service a child can't stop that blocks game launchers, installed games, and game websites, unlockable for a chosen duration with a parent code.
 
-**Architecture:** A shared `GameGuard.Core` library holds all testable logic (code hashing, config, blocklist matching, hosts-file editing, lock/timer state, IPC contract, trust-boundary unlock handler). `GameGuard.Service` (Worker Service, runs as SYSTEM) wires Core to real process enumeration, the hosts file, and a named-pipe server. `GameGuard.Agent` (tray app in the child session) and `GameGuard.Admin` (UAC-elevated config tool) are thin UIs over the pipe / config.
+**Architecture:** A shared `CloveParentalGuard.Core` library holds all testable logic (code hashing, config, blocklist matching, hosts-file editing, lock/timer state, IPC contract, trust-boundary unlock handler). `CloveParentalGuard.Service` (Worker Service, runs as SYSTEM) wires Core to real process enumeration, the hosts file, and a named-pipe server. `CloveParentalGuard.Agent` (tray app in the child session) and `CloveParentalGuard.Admin` (UAC-elevated config tool) are thin UIs over the pipe / config.
 
 **Tech Stack:** C# / .NET 8, xUnit, System.Text.Json, Named Pipes, WinForms (Agent + Admin), Microsoft.Extensions.Hosting (Worker Service).
 
@@ -13,9 +13,9 @@
 - Target framework: `net8.0` for Core/Service/tests; `net8.0-windows` for Agent/Admin (WinForms).
 - Plaintext unlock code is NEVER stored or written to config — only PBKDF2 (`Rfc2898DeriveBytes`, SHA256, 100000 iterations, 16-byte salt, 32-byte hash, Base64).
 - All trust decisions (code verification, lock state, timer) live in the service/Core, never in the Agent.
-- Config path: `C:\ProgramData\GameGuard\config.json` (admin-writable only).
-- Named pipe name: `GameGuardPipe`.
-- Hosts file section is bounded by sentinels `# BEGIN GameGuard` / `# END GameGuard`; never touch lines outside them.
+- Config path: `C:\ProgramData\CloveParentalGuard\config.json` (admin-writable only).
+- Named pipe name: `CloveParentalGuardPipe`.
+- Hosts file section is bounded by sentinels `# BEGIN CloveParentalGuard` / `# END CloveParentalGuard`; never touch lines outside them.
 - Service default state on (re)start is **locked** (fail-safe).
 - Exe-name matching is case-insensitive; path matching uses normalized full paths.
 - All public APIs use the exact signatures named in each task's **Interfaces** block.
@@ -25,32 +25,32 @@
 ### Task 1: Solution + Core/test scaffold
 
 **Files:**
-- Create: `GameGuard.sln`
-- Create: `src/GameGuard.Core/GameGuard.Core.csproj`
-- Create: `tests/GameGuard.Core.Tests/GameGuard.Core.Tests.csproj`
-- Create: `tests/GameGuard.Core.Tests/SmokeTest.cs`
+- Create: `CloveParentalGuard.sln`
+- Create: `src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj`
+- Create: `tests/CloveParentalGuard.Core.Tests/CloveParentalGuard.Core.Tests.csproj`
+- Create: `tests/CloveParentalGuard.Core.Tests/SmokeTest.cs`
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: a buildable solution; `GameGuard.Core` referenced by the test project.
+- Produces: a buildable solution; `CloveParentalGuard.Core` referenced by the test project.
 
 - [ ] **Step 1: Create solution and projects**
 
 Run:
 ```bash
-dotnet new sln -n GameGuard
-dotnet new classlib -n GameGuard.Core -o src/GameGuard.Core -f net8.0
-dotnet new xunit -n GameGuard.Core.Tests -o tests/GameGuard.Core.Tests -f net8.0
-dotnet sln add src/GameGuard.Core/GameGuard.Core.csproj tests/GameGuard.Core.Tests/GameGuard.Core.Tests.csproj
-dotnet add tests/GameGuard.Core.Tests/GameGuard.Core.Tests.csproj reference src/GameGuard.Core/GameGuard.Core.csproj
+dotnet new sln -n CloveParentalGuard
+dotnet new classlib -n CloveParentalGuard.Core -o src/CloveParentalGuard.Core -f net8.0
+dotnet new xunit -n CloveParentalGuard.Core.Tests -o tests/CloveParentalGuard.Core.Tests -f net8.0
+dotnet sln add src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj tests/CloveParentalGuard.Core.Tests/CloveParentalGuard.Core.Tests.csproj
+dotnet add tests/CloveParentalGuard.Core.Tests/CloveParentalGuard.Core.Tests.csproj reference src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj
 ```
-Delete the auto-generated `src/GameGuard.Core/Class1.cs` and `tests/GameGuard.Core.Tests/UnitTest1.cs`.
+Delete the auto-generated `src/CloveParentalGuard.Core/Class1.cs` and `tests/CloveParentalGuard.Core.Tests/UnitTest1.cs`.
 
 - [ ] **Step 2: Write smoke test**
 
-`tests/GameGuard.Core.Tests/SmokeTest.cs`:
+`tests/CloveParentalGuard.Core.Tests/SmokeTest.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class SmokeTest
 {
@@ -67,8 +67,8 @@ Expected: PASS, 1 test.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add GameGuard.sln src tests
-git commit -m "chore: scaffold GameGuard solution and Core test project"
+git add CloveParentalGuard.sln src tests
+git commit -m "chore: scaffold CloveParentalGuard solution and Core test project"
 ```
 
 ---
@@ -76,8 +76,8 @@ git commit -m "chore: scaffold GameGuard solution and Core test project"
 ### Task 2: Code hashing (PBKDF2)
 
 **Files:**
-- Create: `src/GameGuard.Core/CodeHasher.cs`
-- Test: `tests/GameGuard.Core.Tests/CodeHasherTests.cs`
+- Create: `src/CloveParentalGuard.Core/CodeHasher.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/CodeHasherTests.cs`
 
 **Interfaces:**
 - Produces:
@@ -87,9 +87,9 @@ git commit -m "chore: scaffold GameGuard solution and Core test project"
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/CodeHasherTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/CodeHasherTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class CodeHasherTests
 {
@@ -132,11 +132,11 @@ Expected: FAIL (CodeHasher does not exist).
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/CodeHasher.cs`:
+`src/CloveParentalGuard.Core/CodeHasher.cs`:
 ```csharp
 using System.Security.Cryptography;
 
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public record HashedCode(string Salt, string Hash, int Iterations);
 
@@ -174,7 +174,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/CodeHasher.cs tests/GameGuard.Core.Tests/CodeHasherTests.cs
+git add src/CloveParentalGuard.Core/CodeHasher.cs tests/CloveParentalGuard.Core.Tests/CodeHasherTests.cs
 git commit -m "feat: add PBKDF2 code hashing"
 ```
 
@@ -183,24 +183,24 @@ git commit -m "feat: add PBKDF2 code hashing"
 ### Task 3: Config model + JSON store
 
 **Files:**
-- Create: `src/GameGuard.Core/GameGuardConfig.cs`
-- Create: `src/GameGuard.Core/ConfigStore.cs`
-- Test: `tests/GameGuard.Core.Tests/ConfigStoreTests.cs`
+- Create: `src/CloveParentalGuard.Core/CloveParentalGuardConfig.cs`
+- Create: `src/CloveParentalGuard.Core/ConfigStore.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/ConfigStoreTests.cs`
 
 **Interfaces:**
 - Consumes: `HashedCode` (Task 2).
 - Produces:
-  - `class GameGuardConfig` with mutable props: `HashedCode? Code`, `List<string> BlockedExecutables`, `List<string> BlockedFolders`, `List<string> BlockedDomains`, `List<int> DurationsMinutes`; `static GameGuardConfig Default()`.
-  - `static GameGuardConfig ConfigStore.Load(string path)` (returns `Default()` if file missing)
-  - `static void ConfigStore.Save(string path, GameGuardConfig config)` (creates directory if needed)
+  - `class CloveParentalGuardConfig` with mutable props: `HashedCode? Code`, `List<string> BlockedExecutables`, `List<string> BlockedFolders`, `List<string> BlockedDomains`, `List<int> DurationsMinutes`; `static CloveParentalGuardConfig Default()`.
+  - `static CloveParentalGuardConfig ConfigStore.Load(string path)` (returns `Default()` if file missing)
+  - `static void ConfigStore.Save(string path, CloveParentalGuardConfig config)` (creates directory if needed)
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/ConfigStoreTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/ConfigStoreTests.cs`:
 ```csharp
 using System.IO;
 
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class ConfigStoreTests
 {
@@ -217,7 +217,7 @@ public class ConfigStoreTests
     public void Save_Then_Load_Roundtrips()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
-        var cfg = GameGuardConfig.Default();
+        var cfg = CloveParentalGuardConfig.Default();
         cfg.Code = CodeHasher.Hash("abc");
         cfg.BlockedExecutables.Add("steam.exe");
         cfg.BlockedDomains.Add("poki.com");
@@ -239,11 +239,11 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement config model**
 
-`src/GameGuard.Core/GameGuardConfig.cs`:
+`src/CloveParentalGuard.Core/CloveParentalGuardConfig.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
-public class GameGuardConfig
+public class CloveParentalGuardConfig
 {
     public HashedCode? Code { get; set; }
     public List<string> BlockedExecutables { get; set; } = new();
@@ -251,7 +251,7 @@ public class GameGuardConfig
     public List<string> BlockedDomains { get; set; } = new();
     public List<int> DurationsMinutes { get; set; } = new();
 
-    public static GameGuardConfig Default() => new()
+    public static CloveParentalGuardConfig Default() => new()
     {
         BlockedExecutables = new()
         {
@@ -276,25 +276,25 @@ public class GameGuardConfig
 
 - [ ] **Step 4: Implement store**
 
-`src/GameGuard.Core/ConfigStore.cs`:
+`src/CloveParentalGuard.Core/ConfigStore.cs`:
 ```csharp
 using System.IO;
 using System.Text.Json;
 
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public static class ConfigStore
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    public static GameGuardConfig Load(string path)
+    public static CloveParentalGuardConfig Load(string path)
     {
-        if (!File.Exists(path)) return GameGuardConfig.Default();
+        if (!File.Exists(path)) return CloveParentalGuardConfig.Default();
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<GameGuardConfig>(json, Options) ?? GameGuardConfig.Default();
+        return JsonSerializer.Deserialize<CloveParentalGuardConfig>(json, Options) ?? CloveParentalGuardConfig.Default();
     }
 
-    public static void Save(string path, GameGuardConfig config)
+    public static void Save(string path, CloveParentalGuardConfig config)
     {
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -311,7 +311,7 @@ Expected: PASS, 2 tests.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/GameGuard.Core/GameGuardConfig.cs src/GameGuard.Core/ConfigStore.cs tests/GameGuard.Core.Tests/ConfigStoreTests.cs
+git add src/CloveParentalGuard.Core/CloveParentalGuardConfig.cs src/CloveParentalGuard.Core/ConfigStore.cs tests/CloveParentalGuard.Core.Tests/ConfigStoreTests.cs
 git commit -m "feat: add config model and JSON store"
 ```
 
@@ -320,24 +320,24 @@ git commit -m "feat: add config model and JSON store"
 ### Task 4: Blocklist matcher
 
 **Files:**
-- Create: `src/GameGuard.Core/BlocklistMatcher.cs`
-- Test: `tests/GameGuard.Core.Tests/BlocklistMatcherTests.cs`
+- Create: `src/CloveParentalGuard.Core/BlocklistMatcher.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/BlocklistMatcherTests.cs`
 
 **Interfaces:**
-- Consumes: `GameGuardConfig` (Task 3).
-- Produces: `static bool BlocklistMatcher.IsBlocked(string processName, string? executablePath, GameGuardConfig config)`
+- Consumes: `CloveParentalGuardConfig` (Task 3).
+- Produces: `static bool BlocklistMatcher.IsBlocked(string processName, string? executablePath, CloveParentalGuardConfig config)`
   - `processName` may include or omit `.exe`; match is case-insensitive against `BlockedExecutables`.
   - If `executablePath` is non-null and resides under any `BlockedFolders` entry (case-insensitive, normalized), it is blocked.
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/BlocklistMatcherTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/BlocklistMatcherTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class BlocklistMatcherTests
 {
-    private static GameGuardConfig Cfg() => new()
+    private static CloveParentalGuardConfig Cfg() => new()
     {
         BlockedExecutables = new() { "steam.exe", "Battle.net.exe" },
         BlockedFolders = new() { @"C:\Games\steamapps\common" }
@@ -368,15 +368,15 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/BlocklistMatcher.cs`:
+`src/CloveParentalGuard.Core/BlocklistMatcher.cs`:
 ```csharp
 using System.IO;
 
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public static class BlocklistMatcher
 {
-    public static bool IsBlocked(string processName, string? executablePath, GameGuardConfig config)
+    public static bool IsBlocked(string processName, string? executablePath, CloveParentalGuardConfig config)
     {
         var name = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             ? processName
@@ -413,7 +413,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/BlocklistMatcher.cs tests/GameGuard.Core.Tests/BlocklistMatcherTests.cs
+git add src/CloveParentalGuard.Core/BlocklistMatcher.cs tests/CloveParentalGuard.Core.Tests/BlocklistMatcherTests.cs
 git commit -m "feat: add blocklist matcher"
 ```
 
@@ -422,19 +422,19 @@ git commit -m "feat: add blocklist matcher"
 ### Task 5: Hosts-file editor (pure string transform)
 
 **Files:**
-- Create: `src/GameGuard.Core/HostsFileEditor.cs`
-- Test: `tests/GameGuard.Core.Tests/HostsFileEditorTests.cs`
+- Create: `src/CloveParentalGuard.Core/HostsFileEditor.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/HostsFileEditorTests.cs`
 
 **Interfaces:**
 - Produces:
-  - `static string HostsFileEditor.Apply(string currentHosts, IEnumerable<string> domains)` — returns hosts text with a GameGuard sentinel block (replacing any existing one) that maps each domain and its `www.` variant to `127.0.0.1`.
-  - `static string HostsFileEditor.Remove(string currentHosts)` — returns hosts text with the GameGuard sentinel block removed.
+  - `static string HostsFileEditor.Apply(string currentHosts, IEnumerable<string> domains)` — returns hosts text with a CloveParentalGuard sentinel block (replacing any existing one) that maps each domain and its `www.` variant to `127.0.0.1`.
+  - `static string HostsFileEditor.Remove(string currentHosts)` — returns hosts text with the CloveParentalGuard sentinel block removed.
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/HostsFileEditorTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/HostsFileEditorTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class HostsFileEditorTests
 {
@@ -444,8 +444,8 @@ public class HostsFileEditorTests
         var result = HostsFileEditor.Apply("127.0.0.1 localhost\n", new[] { "poki.com" });
         Assert.Contains("127.0.0.1 poki.com", result);
         Assert.Contains("127.0.0.1 www.poki.com", result);
-        Assert.Contains("# BEGIN GameGuard", result);
-        Assert.Contains("# END GameGuard", result);
+        Assert.Contains("# BEGIN CloveParentalGuard", result);
+        Assert.Contains("# END CloveParentalGuard", result);
     }
 
     [Fact]
@@ -460,7 +460,7 @@ public class HostsFileEditorTests
     {
         var once = HostsFileEditor.Apply("127.0.0.1 localhost\n", new[] { "poki.com" });
         var twice = HostsFileEditor.Apply(once, new[] { "crazygames.com" });
-        Assert.Single(Occurrences(twice, "# BEGIN GameGuard"));
+        Assert.Single(Occurrences(twice, "# BEGIN CloveParentalGuard"));
         Assert.Contains("crazygames.com", twice);
         Assert.DoesNotContain("poki.com", twice);
     }
@@ -470,7 +470,7 @@ public class HostsFileEditorTests
     {
         var applied = HostsFileEditor.Apply("127.0.0.1 localhost\n", new[] { "poki.com" });
         var removed = HostsFileEditor.Remove(applied);
-        Assert.DoesNotContain("# BEGIN GameGuard", removed);
+        Assert.DoesNotContain("# BEGIN CloveParentalGuard", removed);
         Assert.DoesNotContain("poki.com", removed);
         Assert.Contains("127.0.0.1 localhost", removed);
     }
@@ -490,17 +490,17 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/HostsFileEditor.cs`:
+`src/CloveParentalGuard.Core/HostsFileEditor.cs`:
 ```csharp
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public static class HostsFileEditor
 {
-    private const string Begin = "# BEGIN GameGuard";
-    private const string End = "# END GameGuard";
+    private const string Begin = "# BEGIN CloveParentalGuard";
+    private const string End = "# END CloveParentalGuard";
 
     public static string Apply(string currentHosts, IEnumerable<string> domains)
     {
@@ -536,7 +536,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/HostsFileEditor.cs tests/GameGuard.Core.Tests/HostsFileEditorTests.cs
+git add src/CloveParentalGuard.Core/HostsFileEditor.cs tests/CloveParentalGuard.Core.Tests/HostsFileEditorTests.cs
 git commit -m "feat: add hosts-file editor"
 ```
 
@@ -545,8 +545,8 @@ git commit -m "feat: add hosts-file editor"
 ### Task 6: Lock/timer state machine
 
 **Files:**
-- Create: `src/GameGuard.Core/LockManager.cs`
-- Test: `tests/GameGuard.Core.Tests/LockManagerTests.cs`
+- Create: `src/CloveParentalGuard.Core/LockManager.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/LockManagerTests.cs`
 
 **Interfaces:**
 - Produces:
@@ -558,9 +558,9 @@ git commit -m "feat: add hosts-file editor"
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/LockManagerTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/LockManagerTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class LockManagerTests
 {
@@ -612,9 +612,9 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/LockManager.cs`:
+`src/CloveParentalGuard.Core/LockManager.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public class LockManager
 {
@@ -649,7 +649,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/LockManager.cs tests/GameGuard.Core.Tests/LockManagerTests.cs
+git add src/CloveParentalGuard.Core/LockManager.cs tests/CloveParentalGuard.Core.Tests/LockManagerTests.cs
 git commit -m "feat: add lock/timer state machine"
 ```
 
@@ -658,9 +658,9 @@ git commit -m "feat: add lock/timer state machine"
 ### Task 7: IPC contract + protocol
 
 **Files:**
-- Create: `src/GameGuard.Core/PipeMessages.cs`
-- Create: `src/GameGuard.Core/PipeProtocol.cs`
-- Test: `tests/GameGuard.Core.Tests/PipeProtocolTests.cs`
+- Create: `src/CloveParentalGuard.Core/PipeMessages.cs`
+- Create: `src/CloveParentalGuard.Core/PipeProtocol.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/PipeProtocolTests.cs`
 
 **Interfaces:**
 - Produces:
@@ -671,9 +671,9 @@ git commit -m "feat: add lock/timer state machine"
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/PipeProtocolTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/PipeProtocolTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class PipeProtocolTests
 {
@@ -706,20 +706,20 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/PipeMessages.cs`:
+`src/CloveParentalGuard.Core/PipeMessages.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public record PipeRequest(string Type, string? Code = null, int DurationMinutes = 0);
 
 public record PipeResponse(bool Success, bool IsLocked, int RemainingSeconds, string? Error = null);
 ```
 
-`src/GameGuard.Core/PipeProtocol.cs`:
+`src/CloveParentalGuard.Core/PipeProtocol.cs`:
 ```csharp
 using System.Text.Json;
 
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public static class PipeProtocol
 {
@@ -741,7 +741,7 @@ Expected: PASS, 2 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/PipeMessages.cs src/GameGuard.Core/PipeProtocol.cs tests/GameGuard.Core.Tests/PipeProtocolTests.cs
+git add src/CloveParentalGuard.Core/PipeMessages.cs src/CloveParentalGuard.Core/PipeProtocol.cs tests/CloveParentalGuard.Core.Tests/PipeProtocolTests.cs
 git commit -m "feat: add IPC message contract and protocol"
 ```
 
@@ -750,26 +750,26 @@ git commit -m "feat: add IPC message contract and protocol"
 ### Task 8: Unlock handler (trust boundary)
 
 **Files:**
-- Create: `src/GameGuard.Core/UnlockHandler.cs`
-- Test: `tests/GameGuard.Core.Tests/UnlockHandlerTests.cs`
+- Create: `src/CloveParentalGuard.Core/UnlockHandler.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/UnlockHandlerTests.cs`
 
 **Interfaces:**
-- Consumes: `LockManager` (Task 6), `GameGuardConfig` + `CodeHasher` (Tasks 2-3), `PipeRequest`/`PipeResponse` (Task 7).
+- Consumes: `LockManager` (Task 6), `CloveParentalGuardConfig` + `CodeHasher` (Tasks 2-3), `PipeRequest`/`PipeResponse` (Task 7).
 - Produces:
-  - `class UnlockHandler(LockManager lockManager, Func<GameGuardConfig> configProvider)`
+  - `class UnlockHandler(LockManager lockManager, Func<CloveParentalGuardConfig> configProvider)`
   - `PipeResponse Handle(PipeRequest request)` — for `"status"`, returns current lock state; for `"unlock"`, verifies code against config and, on success, unlocks for the requested duration **only if** the duration is in `config.DurationsMinutes`. Wrong code or invalid duration → `Success=false` with `Error`.
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/UnlockHandlerTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/UnlockHandlerTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class UnlockHandlerTests
 {
     private static (UnlockHandler handler, LockManager lm) Build(DateTimeOffset now)
     {
-        var cfg = GameGuardConfig.Default();
+        var cfg = CloveParentalGuardConfig.Default();
         cfg.Code = CodeHasher.Hash("parent");
         var lm = new LockManager(() => now);
         return (new UnlockHandler(lm, () => cfg), lm);
@@ -823,16 +823,16 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/UnlockHandler.cs`:
+`src/CloveParentalGuard.Core/UnlockHandler.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public class UnlockHandler
 {
     private readonly LockManager _lockManager;
-    private readonly Func<GameGuardConfig> _configProvider;
+    private readonly Func<CloveParentalGuardConfig> _configProvider;
 
-    public UnlockHandler(LockManager lockManager, Func<GameGuardConfig> configProvider)
+    public UnlockHandler(LockManager lockManager, Func<CloveParentalGuardConfig> configProvider)
     {
         _lockManager = lockManager;
         _configProvider = configProvider;
@@ -874,7 +874,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/UnlockHandler.cs tests/GameGuard.Core.Tests/UnlockHandlerTests.cs
+git add src/CloveParentalGuard.Core/UnlockHandler.cs tests/CloveParentalGuard.Core.Tests/UnlockHandlerTests.cs
 git commit -m "feat: add unlock handler trust boundary"
 ```
 
@@ -883,25 +883,25 @@ git commit -m "feat: add unlock handler trust boundary"
 ### Task 9: Process scan decision logic
 
 **Files:**
-- Create: `src/GameGuard.Core/ProcessInfo.cs`
-- Create: `src/GameGuard.Core/IProcessProvider.cs`
-- Create: `src/GameGuard.Core/ProcessScanner.cs`
-- Test: `tests/GameGuard.Core.Tests/ProcessScannerTests.cs`
+- Create: `src/CloveParentalGuard.Core/ProcessInfo.cs`
+- Create: `src/CloveParentalGuard.Core/IProcessProvider.cs`
+- Create: `src/CloveParentalGuard.Core/ProcessScanner.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/ProcessScannerTests.cs`
 
 **Interfaces:**
-- Consumes: `BlocklistMatcher` (Task 4), `LockManager` (Task 6), `GameGuardConfig` (Task 3).
+- Consumes: `BlocklistMatcher` (Task 4), `LockManager` (Task 6), `CloveParentalGuardConfig` (Task 3).
 - Produces:
   - `record ProcessInfo(int Pid, string Name, string? Path)`
   - `interface IProcessProvider { IEnumerable<ProcessInfo> GetProcesses(); }`
   - `interface IProcessKiller { void Kill(int pid); }`
-  - `class ProcessScanner(LockManager lockManager, Func<GameGuardConfig> configProvider, IProcessProvider provider, IProcessKiller killer)`
+  - `class ProcessScanner(LockManager lockManager, Func<CloveParentalGuardConfig> configProvider, IProcessProvider provider, IProcessKiller killer)`
   - `IReadOnlyList<ProcessInfo> ScanAndEnforce()` — when locked, kills every blocked process and returns the list it killed; when unlocked, kills nothing and returns empty.
 
 - [ ] **Step 1: Write failing tests**
 
-`tests/GameGuard.Core.Tests/ProcessScannerTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/ProcessScannerTests.cs`:
 ```csharp
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class ProcessScannerTests
 {
@@ -916,7 +916,7 @@ public class ProcessScannerTests
         public void Kill(int pid) => Killed.Add(pid);
     }
 
-    private static GameGuardConfig Cfg() => new() { BlockedExecutables = new() { "steam.exe" } };
+    private static CloveParentalGuardConfig Cfg() => new() { BlockedExecutables = new() { "steam.exe" } };
 
     [Fact]
     public void Kills_Blocked_Process_When_Locked()
@@ -958,34 +958,34 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`src/GameGuard.Core/ProcessInfo.cs`:
+`src/CloveParentalGuard.Core/ProcessInfo.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public record ProcessInfo(int Pid, string Name, string? Path);
 ```
 
-`src/GameGuard.Core/IProcessProvider.cs`:
+`src/CloveParentalGuard.Core/IProcessProvider.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public interface IProcessProvider { IEnumerable<ProcessInfo> GetProcesses(); }
 
 public interface IProcessKiller { void Kill(int pid); }
 ```
 
-`src/GameGuard.Core/ProcessScanner.cs`:
+`src/CloveParentalGuard.Core/ProcessScanner.cs`:
 ```csharp
-namespace GameGuard.Core;
+namespace CloveParentalGuard.Core;
 
 public class ProcessScanner
 {
     private readonly LockManager _lockManager;
-    private readonly Func<GameGuardConfig> _configProvider;
+    private readonly Func<CloveParentalGuardConfig> _configProvider;
     private readonly IProcessProvider _provider;
     private readonly IProcessKiller _killer;
 
-    public ProcessScanner(LockManager lockManager, Func<GameGuardConfig> configProvider,
+    public ProcessScanner(LockManager lockManager, Func<CloveParentalGuardConfig> configProvider,
         IProcessProvider provider, IProcessKiller killer)
     {
         _lockManager = lockManager;
@@ -1018,7 +1018,7 @@ Expected: PASS, 2 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/GameGuard.Core/ProcessInfo.cs src/GameGuard.Core/IProcessProvider.cs src/GameGuard.Core/ProcessScanner.cs tests/GameGuard.Core.Tests/ProcessScannerTests.cs
+git add src/CloveParentalGuard.Core/ProcessInfo.cs src/CloveParentalGuard.Core/IProcessProvider.cs src/CloveParentalGuard.Core/ProcessScanner.cs tests/CloveParentalGuard.Core.Tests/ProcessScannerTests.cs
 git commit -m "feat: add process scan/enforce logic"
 ```
 
@@ -1027,14 +1027,14 @@ git commit -m "feat: add process scan/enforce logic"
 ### Task 10: Service real adapters (process + hosts file)
 
 **Files:**
-- Create: `src/GameGuard.Service/GameGuard.Service.csproj`
-- Create: `src/GameGuard.Service/SystemProcessProvider.cs`
-- Create: `src/GameGuard.Service/SystemProcessKiller.cs`
-- Create: `src/GameGuard.Service/HostsFileApplier.cs`
-- Test: `tests/GameGuard.Core.Tests/HostsFileApplierTests.cs` (temp-file integration test for the applier; lives in the existing test project)
+- Create: `src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj`
+- Create: `src/CloveParentalGuard.Service/SystemProcessProvider.cs`
+- Create: `src/CloveParentalGuard.Service/SystemProcessKiller.cs`
+- Create: `src/CloveParentalGuard.Service/HostsFileApplier.cs`
+- Test: `tests/CloveParentalGuard.Core.Tests/HostsFileApplierTests.cs` (temp-file integration test for the applier; lives in the existing test project)
 
 **Interfaces:**
-- Consumes: `IProcessProvider`, `IProcessKiller` (Task 9), `HostsFileEditor` (Task 5), `GameGuardConfig` (Task 3).
+- Consumes: `IProcessProvider`, `IProcessKiller` (Task 9), `HostsFileEditor` (Task 5), `CloveParentalGuardConfig` (Task 3).
 - Produces:
   - `class SystemProcessProvider : IProcessProvider` (enumerates real processes; `Path` is null when inaccessible).
   - `class SystemProcessKiller : IProcessKiller` (`Process.GetProcessById(pid).Kill()`).
@@ -1044,20 +1044,20 @@ git commit -m "feat: add process scan/enforce logic"
 
 Run:
 ```bash
-dotnet new worker -n GameGuard.Service -o src/GameGuard.Service -f net8.0
-dotnet sln add src/GameGuard.Service/GameGuard.Service.csproj
-dotnet add src/GameGuard.Service/GameGuard.Service.csproj reference src/GameGuard.Core/GameGuard.Core.csproj
-dotnet add src/GameGuard.Service/GameGuard.Service.csproj package Microsoft.Extensions.Hosting.WindowsServices
+dotnet new worker -n CloveParentalGuard.Service -o src/CloveParentalGuard.Service -f net8.0
+dotnet sln add src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj
+dotnet add src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj reference src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj
+dotnet add src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj package Microsoft.Extensions.Hosting.WindowsServices
 ```
 
 - [ ] **Step 2: Write failing temp-file test for HostsFileApplier**
 
-`tests/GameGuard.Core.Tests/HostsFileApplierTests.cs`:
+`tests/CloveParentalGuard.Core.Tests/HostsFileApplierTests.cs`:
 ```csharp
 using System.IO;
-using GameGuard.Service;
+using CloveParentalGuard.Service;
 
-namespace GameGuard.Core.Tests;
+namespace CloveParentalGuard.Core.Tests;
 
 public class HostsFileApplierTests
 {
@@ -1083,7 +1083,7 @@ public class HostsFileApplierTests
 ```
 Add a reference so the test project can see the service types:
 ```bash
-dotnet add tests/GameGuard.Core.Tests/GameGuard.Core.Tests.csproj reference src/GameGuard.Service/GameGuard.Service.csproj
+dotnet add tests/CloveParentalGuard.Core.Tests/CloveParentalGuard.Core.Tests.csproj reference src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj
 ```
 
 - [ ] **Step 3: Run, verify fail**
@@ -1093,12 +1093,12 @@ Expected: FAIL (HostsFileApplier does not exist).
 
 - [ ] **Step 4: Implement adapters**
 
-`src/GameGuard.Service/HostsFileApplier.cs`:
+`src/CloveParentalGuard.Service/HostsFileApplier.cs`:
 ```csharp
 using System.IO;
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public class HostsFileApplier
 {
@@ -1120,12 +1120,12 @@ public class HostsFileApplier
 }
 ```
 
-`src/GameGuard.Service/SystemProcessProvider.cs`:
+`src/CloveParentalGuard.Service/SystemProcessProvider.cs`:
 ```csharp
 using System.Diagnostics;
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public class SystemProcessProvider : IProcessProvider
 {
@@ -1141,12 +1141,12 @@ public class SystemProcessProvider : IProcessProvider
 }
 ```
 
-`src/GameGuard.Service/SystemProcessKiller.cs`:
+`src/CloveParentalGuard.Service/SystemProcessKiller.cs`:
 ```csharp
 using System.Diagnostics;
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public class SystemProcessKiller : IProcessKiller
 {
@@ -1166,7 +1166,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/GameGuard.Service tests/GameGuard.Core.Tests/HostsFileApplierTests.cs GameGuard.sln tests/GameGuard.Core.Tests/GameGuard.Core.Tests.csproj
+git add src/CloveParentalGuard.Service tests/CloveParentalGuard.Core.Tests/HostsFileApplierTests.cs CloveParentalGuard.sln tests/CloveParentalGuard.Core.Tests/CloveParentalGuard.Core.Tests.csproj
 git commit -m "feat: add service process/hosts adapters"
 ```
 
@@ -1175,7 +1175,7 @@ git commit -m "feat: add service process/hosts adapters"
 ### Task 11: Named-pipe server
 
 **Files:**
-- Create: `src/GameGuard.Service/PipeServer.cs`
+- Create: `src/CloveParentalGuard.Service/PipeServer.cs`
 - Test: manual (documented at end of step)
 
 **Interfaces:**
@@ -1186,16 +1186,16 @@ git commit -m "feat: add service process/hosts adapters"
 
 - [ ] **Step 1: Implement pipe server**
 
-`src/GameGuard.Service/PipeServer.cs`:
+`src/CloveParentalGuard.Service/PipeServer.cs`:
 ```csharp
 using System.IO;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public class PipeServer
 {
@@ -1259,13 +1259,13 @@ public class PipeServer
 
 - [ ] **Step 2: Verify it compiles**
 
-Run: `dotnet build src/GameGuard.Service/GameGuard.Service.csproj`
+Run: `dotnet build src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj`
 Expected: Build succeeded.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/GameGuard.Service/PipeServer.cs
+git add src/CloveParentalGuard.Service/PipeServer.cs
 git commit -m "feat: add named-pipe server with ACL"
 ```
 
@@ -1276,9 +1276,9 @@ Manual test deferred to Task 12 (Worker host), where the pipe is exercised end-t
 ### Task 12: Worker host wiring
 
 **Files:**
-- Modify: `src/GameGuard.Service/Worker.cs` (replace template contents)
-- Modify: `src/GameGuard.Service/Program.cs` (replace template contents)
-- Create: `src/GameGuard.Service/Constants.cs`
+- Modify: `src/CloveParentalGuard.Service/Worker.cs` (replace template contents)
+- Modify: `src/CloveParentalGuard.Service/Program.cs` (replace template contents)
+- Create: `src/CloveParentalGuard.Service/Constants.cs`
 
 **Interfaces:**
 - Consumes: everything above.
@@ -1286,15 +1286,15 @@ Manual test deferred to Task 12 (Worker host), where the pipe is exercised end-t
 
 - [ ] **Step 1: Add shared constants**
 
-`src/GameGuard.Service/Constants.cs`:
+`src/CloveParentalGuard.Service/Constants.cs`:
 ```csharp
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public static class Constants
 {
-    public const string PipeName = "GameGuardPipe";
+    public const string PipeName = "CloveParentalGuardPipe";
     public static readonly string ConfigPath =
-        @"C:\ProgramData\GameGuard\config.json";
+        @"C:\ProgramData\CloveParentalGuard\config.json";
     public static readonly string HostsPath =
         Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\drivers\etc\hosts");
     public static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(2);
@@ -1303,11 +1303,11 @@ public static class Constants
 
 - [ ] **Step 2: Implement Worker**
 
-`src/GameGuard.Service/Worker.cs`:
+`src/CloveParentalGuard.Service/Worker.cs`:
 ```csharp
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Service;
+namespace CloveParentalGuard.Service;
 
 public class Worker : BackgroundService
 {
@@ -1329,7 +1329,7 @@ public class Worker : BackgroundService
         _pipeServer = new PipeServer(handler, Constants.PipeName);
     }
 
-    private GameGuardConfig LoadConfig() => ConfigStore.Load(Constants.ConfigPath);
+    private CloveParentalGuardConfig LoadConfig() => ConfigStore.Load(Constants.ConfigPath);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -1365,12 +1365,12 @@ public class Worker : BackgroundService
 
 - [ ] **Step 3: Implement Program with Windows Service host**
 
-`src/GameGuard.Service/Program.cs`:
+`src/CloveParentalGuard.Service/Program.cs`:
 ```csharp
-using GameGuard.Service;
+using CloveParentalGuard.Service;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddWindowsService(o => o.ServiceName = "GameGuard");
+builder.Services.AddWindowsService(o => o.ServiceName = "CloveParentalGuard");
 builder.Services.AddHostedService<Worker>();
 var host = builder.Build();
 host.Run();
@@ -1378,24 +1378,24 @@ host.Run();
 
 - [ ] **Step 4: Build**
 
-Run: `dotnet build src/GameGuard.Service/GameGuard.Service.csproj`
+Run: `dotnet build src/CloveParentalGuard.Service/CloveParentalGuard.Service.csproj`
 Expected: Build succeeded.
 
 - [ ] **Step 5: Manual end-to-end smoke (elevated)**
 
 Document and run (in an elevated shell):
 ```powershell
-dotnet publish src/GameGuard.Service -c Release -r win-x64 --self-contained -o publish/service
-sc.exe create GameGuard binPath= "<repo>\publish\service\GameGuard.Service.exe" start= auto obj= LocalSystem
-sc.exe start GameGuard
+dotnet publish src/CloveParentalGuard.Service -c Release -r win-x64 --self-contained -o publish/service
+sc.exe create CloveParentalGuard binPath= "<repo>\publish\service\CloveParentalGuard.Service.exe" start= auto obj= LocalSystem
+sc.exe start CloveParentalGuard
 ```
-Expected: service Running; opening Steam is killed within ~2s; `etc\hosts` contains the GameGuard block. Stop with `sc.exe stop GameGuard` for now.
+Expected: service Running; opening Steam is killed within ~2s; `etc\hosts` contains the CloveParentalGuard block. Stop with `sc.exe stop CloveParentalGuard` for now.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/GameGuard.Service/Worker.cs src/GameGuard.Service/Program.cs src/GameGuard.Service/Constants.cs
-git commit -m "feat: wire GameGuard worker service"
+git add src/CloveParentalGuard.Service/Worker.cs src/CloveParentalGuard.Service/Program.cs src/CloveParentalGuard.Service/Constants.cs
+git commit -m "feat: wire CloveParentalGuard worker service"
 ```
 
 ---
@@ -1403,10 +1403,10 @@ git commit -m "feat: wire GameGuard worker service"
 ### Task 13: Agent tray app (UI over pipe)
 
 **Files:**
-- Create: `src/GameGuard.Agent/GameGuard.Agent.csproj`
-- Create: `src/GameGuard.Agent/PipeClient.cs`
-- Create: `src/GameGuard.Agent/UnlockForm.cs`
-- Create: `src/GameGuard.Agent/Program.cs`
+- Create: `src/CloveParentalGuard.Agent/CloveParentalGuard.Agent.csproj`
+- Create: `src/CloveParentalGuard.Agent/PipeClient.cs`
+- Create: `src/CloveParentalGuard.Agent/UnlockForm.cs`
+- Create: `src/CloveParentalGuard.Agent/Program.cs`
 
 **Interfaces:**
 - Consumes: `PipeProtocol`, `PipeRequest`, `PipeResponse` (Task 7).
@@ -1419,22 +1419,22 @@ git commit -m "feat: wire GameGuard worker service"
 
 Run:
 ```bash
-dotnet new winforms -n GameGuard.Agent -o src/GameGuard.Agent -f net8.0-windows
-dotnet sln add src/GameGuard.Agent/GameGuard.Agent.csproj
-dotnet add src/GameGuard.Agent/GameGuard.Agent.csproj reference src/GameGuard.Core/GameGuard.Core.csproj
+dotnet new winforms -n CloveParentalGuard.Agent -o src/CloveParentalGuard.Agent -f net8.0-windows
+dotnet sln add src/CloveParentalGuard.Agent/CloveParentalGuard.Agent.csproj
+dotnet add src/CloveParentalGuard.Agent/CloveParentalGuard.Agent.csproj reference src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj
 ```
 Delete the template `Form1.cs` and `Form1.Designer.cs`.
 
 - [ ] **Step 2: Implement pipe client**
 
-`src/GameGuard.Agent/PipeClient.cs`:
+`src/CloveParentalGuard.Agent/PipeClient.cs`:
 ```csharp
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Agent;
+namespace CloveParentalGuard.Agent;
 
 public class PipeClient
 {
@@ -1456,11 +1456,11 @@ public class PipeClient
 
 - [ ] **Step 3: Implement unlock form**
 
-`src/GameGuard.Agent/UnlockForm.cs`:
+`src/CloveParentalGuard.Agent/UnlockForm.cs`:
 ```csharp
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Agent;
+namespace CloveParentalGuard.Agent;
 
 public class UnlockForm : Form
 {
@@ -1472,7 +1472,7 @@ public class UnlockForm : Form
     public UnlockForm(PipeClient client, IEnumerable<int> durations)
     {
         _client = client;
-        Text = "GameGuard — Unlock";
+        Text = "CloveParentalGuard — Unlock";
         Width = 280; Height = 220; FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen; MaximizeBox = false; MinimizeBox = false;
 
@@ -1505,15 +1505,15 @@ public class UnlockForm : Form
 
 - [ ] **Step 4: Implement tray program**
 
-`src/GameGuard.Agent/Program.cs`:
+`src/CloveParentalGuard.Agent/Program.cs`:
 ```csharp
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Agent;
+namespace CloveParentalGuard.Agent;
 
 static class Program
 {
-    private const string PipeName = "GameGuardPipe";
+    private const string PipeName = "CloveParentalGuardPipe";
 
     [STAThread]
     static void Main()
@@ -1527,7 +1527,7 @@ static class Program
         {
             Icon = SystemIcons.Shield,
             Visible = true,
-            Text = "GameGuard"
+            Text = "CloveParentalGuard"
         };
         var menu = new ContextMenuStrip();
         menu.Items.Add("Unlock…", null, (_, _) => OpenUnlock(client, durations));
@@ -1541,10 +1541,10 @@ static class Program
             try
             {
                 var s = client.Send(new PipeRequest("status"));
-                tray.Text = s.IsLocked ? "GameGuard: LOCKED"
-                    : $"GameGuard: unlocked ({s.RemainingSeconds / 60} min left)";
+                tray.Text = s.IsLocked ? "CloveParentalGuard: LOCKED"
+                    : $"CloveParentalGuard: unlocked ({s.RemainingSeconds / 60} min left)";
             }
-            catch { tray.Text = "GameGuard: service offline"; }
+            catch { tray.Text = "CloveParentalGuard: service offline"; }
         };
         timer.Start();
 
@@ -1562,7 +1562,7 @@ static class Program
 
 - [ ] **Step 5: Build**
 
-Run: `dotnet build src/GameGuard.Agent/GameGuard.Agent.csproj`
+Run: `dotnet build src/CloveParentalGuard.Agent/CloveParentalGuard.Agent.csproj`
 Expected: Build succeeded.
 
 - [ ] **Step 6: Manual end-to-end test**
@@ -1572,7 +1572,7 @@ With the service running (Task 12) and a code configured (Task 14), run the agen
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/GameGuard.Agent GameGuard.sln
+git add src/CloveParentalGuard.Agent CloveParentalGuard.sln
 git commit -m "feat: add agent tray app and unlock dialog"
 ```
 
@@ -1581,26 +1581,26 @@ git commit -m "feat: add agent tray app and unlock dialog"
 ### Task 14: Admin config tool (UAC-elevated)
 
 **Files:**
-- Create: `src/GameGuard.Admin/GameGuard.Admin.csproj`
-- Create: `src/GameGuard.Admin/app.manifest`
-- Create: `src/GameGuard.Admin/AdminForm.cs`
-- Create: `src/GameGuard.Admin/Program.cs`
+- Create: `src/CloveParentalGuard.Admin/CloveParentalGuard.Admin.csproj`
+- Create: `src/CloveParentalGuard.Admin/app.manifest`
+- Create: `src/CloveParentalGuard.Admin/AdminForm.cs`
+- Create: `src/CloveParentalGuard.Admin/Program.cs`
 
 **Interfaces:**
-- Consumes: `GameGuardConfig`, `ConfigStore`, `CodeHasher` (Tasks 2-3).
+- Consumes: `CloveParentalGuardConfig`, `ConfigStore`, `CodeHasher` (Tasks 2-3).
 - Produces: a form that loads/saves `Constants.ConfigPath`, sets the parent code (hashed), and edits blocked exes/folders/domains and durations. Manifest forces elevation so a standard user can't run it.
 
 - [ ] **Step 1: Create project + force elevation**
 
 Run:
 ```bash
-dotnet new winforms -n GameGuard.Admin -o src/GameGuard.Admin -f net8.0-windows
-dotnet sln add src/GameGuard.Admin/GameGuard.Admin.csproj
-dotnet add src/GameGuard.Admin/GameGuard.Admin.csproj reference src/GameGuard.Core/GameGuard.Core.csproj
+dotnet new winforms -n CloveParentalGuard.Admin -o src/CloveParentalGuard.Admin -f net8.0-windows
+dotnet sln add src/CloveParentalGuard.Admin/CloveParentalGuard.Admin.csproj
+dotnet add src/CloveParentalGuard.Admin/CloveParentalGuard.Admin.csproj reference src/CloveParentalGuard.Core/CloveParentalGuard.Core.csproj
 ```
 Delete the template `Form1.cs` / `Form1.Designer.cs`.
 
-`src/GameGuard.Admin/app.manifest`:
+`src/CloveParentalGuard.Admin/app.manifest`:
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
@@ -1613,23 +1613,23 @@ Delete the template `Form1.cs` / `Form1.Designer.cs`.
   </trustInfo>
 </assembly>
 ```
-Add to `src/GameGuard.Admin/GameGuard.Admin.csproj` inside `<PropertyGroup>`:
+Add to `src/CloveParentalGuard.Admin/CloveParentalGuard.Admin.csproj` inside `<PropertyGroup>`:
 ```xml
 <ApplicationManifest>app.manifest</ApplicationManifest>
 ```
 
 - [ ] **Step 2: Implement admin form**
 
-`src/GameGuard.Admin/AdminForm.cs`:
+`src/CloveParentalGuard.Admin/AdminForm.cs`:
 ```csharp
-using GameGuard.Core;
+using CloveParentalGuard.Core;
 
-namespace GameGuard.Admin;
+namespace CloveParentalGuard.Admin;
 
 public class AdminForm : Form
 {
-    private const string ConfigPath = @"C:\ProgramData\GameGuard\config.json";
-    private GameGuardConfig _config = ConfigStore.Load(ConfigPath);
+    private const string ConfigPath = @"C:\ProgramData\CloveParentalGuard\config.json";
+    private CloveParentalGuardConfig _config = ConfigStore.Load(ConfigPath);
 
     private readonly TextBox _code = new() { PlaceholderText = "New parent code (blank = keep)", Width = 360, UseSystemPasswordChar = true };
     private readonly TextBox _exes = new() { Multiline = true, Width = 360, Height = 90, ScrollBars = ScrollBars.Vertical };
@@ -1639,7 +1639,7 @@ public class AdminForm : Form
 
     public AdminForm()
     {
-        Text = "GameGuard — Admin";
+        Text = "CloveParentalGuard — Admin";
         Width = 410; Height = 560; StartPosition = FormStartPosition.CenterScreen;
 
         _exes.Text = string.Join(Environment.NewLine, _config.BlockedExecutables);
@@ -1688,7 +1688,7 @@ public class AdminForm : Form
         try
         {
             ConfigStore.Save(ConfigPath, _config);
-            MessageBox.Show("Saved. Restart the GameGuard service to apply blocklist changes.");
+            MessageBox.Show("Saved. Restart the CloveParentalGuard service to apply blocklist changes.");
         }
         catch (Exception ex) { MessageBox.Show("Save failed: " + ex.Message); }
     }
@@ -1700,9 +1700,9 @@ public class AdminForm : Form
 
 - [ ] **Step 3: Implement program**
 
-`src/GameGuard.Admin/Program.cs`:
+`src/CloveParentalGuard.Admin/Program.cs`:
 ```csharp
-namespace GameGuard.Admin;
+namespace CloveParentalGuard.Admin;
 
 static class Program
 {
@@ -1717,17 +1717,17 @@ static class Program
 
 - [ ] **Step 4: Build**
 
-Run: `dotnet build src/GameGuard.Admin/GameGuard.Admin.csproj`
+Run: `dotnet build src/CloveParentalGuard.Admin/CloveParentalGuard.Admin.csproj`
 Expected: Build succeeded.
 
 - [ ] **Step 5: Manual test**
 
-Run the built exe; UAC prompts for elevation. Set a code, adjust lists, Save. Confirm `C:\ProgramData\GameGuard\config.json` is written and contains a hashed code (no plaintext). As a standard user, confirm the tool refuses to run without admin.
+Run the built exe; UAC prompts for elevation. Set a code, adjust lists, Save. Confirm `C:\ProgramData\CloveParentalGuard\config.json` is written and contains a hashed code (no plaintext). As a standard user, confirm the tool refuses to run without admin.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/GameGuard.Admin GameGuard.sln
+git add src/CloveParentalGuard.Admin CloveParentalGuard.sln
 git commit -m "feat: add UAC-elevated admin config tool"
 ```
 
@@ -1736,8 +1736,8 @@ git commit -m "feat: add UAC-elevated admin config tool"
 ### Task 15: Install/uninstall scripts + README
 
 **Files:**
-- Create: `install/Install-GameGuard.ps1`
-- Create: `install/Uninstall-GameGuard.ps1`
+- Create: `install/Install-CloveParentalGuard.ps1`
+- Create: `install/Uninstall-CloveParentalGuard.ps1`
 - Create: `README.md`
 
 **Interfaces:**
@@ -1746,58 +1746,58 @@ git commit -m "feat: add UAC-elevated admin config tool"
 
 - [ ] **Step 1: Install script**
 
-`install/Install-GameGuard.ps1`:
+`install/Install-CloveParentalGuard.ps1`:
 ```powershell
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $pub  = Join-Path $root "publish"
 
-dotnet publish "$root/src/GameGuard.Service" -c Release -r win-x64 --self-contained -o "$pub/service"
-dotnet publish "$root/src/GameGuard.Agent"   -c Release -r win-x64 --self-contained -o "$pub/agent"
-dotnet publish "$root/src/GameGuard.Admin"   -c Release -r win-x64 --self-contained -o "$pub/admin"
+dotnet publish "$root/src/CloveParentalGuard.Service" -c Release -r win-x64 --self-contained -o "$pub/service"
+dotnet publish "$root/src/CloveParentalGuard.Agent"   -c Release -r win-x64 --self-contained -o "$pub/agent"
+dotnet publish "$root/src/CloveParentalGuard.Admin"   -c Release -r win-x64 --self-contained -o "$pub/admin"
 
-$svcExe = Join-Path $pub "service/GameGuard.Service.exe"
-sc.exe create GameGuard binPath= "`"$svcExe`"" start= auto obj= LocalSystem DisplayName= "GameGuard"
+$svcExe = Join-Path $pub "service/CloveParentalGuard.Service.exe"
+sc.exe create CloveParentalGuard binPath= "`"$svcExe`"" start= auto obj= LocalSystem DisplayName= "CloveParentalGuard"
 # Restart on crash: 1st/2nd/subsequent failures restart after 5s
-sc.exe failure GameGuard reset= 0 actions= restart/5000/restart/5000/restart/5000
-sc.exe start GameGuard
+sc.exe failure CloveParentalGuard reset= 0 actions= restart/5000/restart/5000/restart/5000
+sc.exe start CloveParentalGuard
 
 # Agent at logon for all users (runs in the interactive session)
-$agentExe = Join-Path $pub "agent/GameGuard.Agent.exe"
+$agentExe = Join-Path $pub "agent/CloveParentalGuard.Agent.exe"
 $action  = New-ScheduledTaskAction -Execute $agentExe
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -GroupId "S-1-5-32-545" -RunLevel Limited # BUILTIN\Users
-Register-ScheduledTask -TaskName "GameGuardAgent" -Action $action -Trigger $trigger -Principal $principal -Force
+Register-ScheduledTask -TaskName "CloveParentalGuardAgent" -Action $action -Trigger $trigger -Principal $principal -Force
 
-Write-Host "Installed. Run the Admin tool to set the parent code:`n  $($pub)\admin\GameGuard.Admin.exe"
+Write-Host "Installed. Run the Admin tool to set the parent code:`n  $($pub)\admin\CloveParentalGuard.Admin.exe"
 ```
 
 - [ ] **Step 2: Uninstall script**
 
-`install/Uninstall-GameGuard.ps1`:
+`install/Uninstall-CloveParentalGuard.ps1`:
 ```powershell
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "SilentlyContinue"
-sc.exe stop GameGuard
-sc.exe delete GameGuard
-Unregister-ScheduledTask -TaskName "GameGuardAgent" -Confirm:$false
+sc.exe stop CloveParentalGuard
+sc.exe delete CloveParentalGuard
+Unregister-ScheduledTask -TaskName "CloveParentalGuardAgent" -Confirm:$false
 
-# Strip the GameGuard block from hosts
+# Strip the CloveParentalGuard block from hosts
 $hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
 if (Test-Path $hosts) {
     $content = Get-Content $hosts -Raw
     $cleaned = [System.Text.RegularExpressions.Regex]::Replace(
-        $content, "# BEGIN GameGuard.*?# END GameGuard\r?\n?", "",
+        $content, "# BEGIN CloveParentalGuard.*?# END CloveParentalGuard\r?\n?", "",
         [System.Text.RegularExpressions.RegexOptions]::Singleline)
     Set-Content -Path $hosts -Value $cleaned -Encoding ascii
 }
-Write-Host "Uninstalled. Config left at C:\ProgramData\GameGuard (delete manually if desired)."
+Write-Host "Uninstalled. Config left at C:\ProgramData\CloveParentalGuard (delete manually if desired)."
 ```
 
 - [ ] **Step 3: README**
 
-`README.md` — document: what it is, the honest limits (Safe Mode/USB-boot caveat from the spec), build prerequisites (.NET 8 SDK), install steps (run `Install-GameGuard.ps1` elevated, then set a code in the Admin tool), how unlock works, and how to add new games/domains. Include a one-line summary of each component (Service/Agent/Admin).
+`README.md` — document: what it is, the honest limits (Safe Mode/USB-boot caveat from the spec), build prerequisites (.NET 8 SDK), install steps (run `Install-CloveParentalGuard.ps1` elevated, then set a code in the Admin tool), how unlock works, and how to add new games/domains. Include a one-line summary of each component (Service/Agent/Admin).
 
 - [ ] **Step 4: Full test pass + commit**
 
@@ -1827,4 +1827,4 @@ git commit -m "feat: add install/uninstall scripts and README"
 
 **Placeholder scan:** No TBD/TODO; every code step contains full code. README (Task 15) is the one prose deliverable, with explicit required contents listed.
 
-**Type consistency:** `HashedCode`, `GameGuardConfig`, `PipeRequest`/`PipeResponse`, `LockManager`, `UnlockHandler`, `ProcessScanner`, `IProcessProvider`/`IProcessKiller`, `HostsFileApplier` signatures are used identically across producing and consuming tasks. Pipe name `GameGuardPipe` and config path are centralized (Agent uses literals matching `Constants`; both equal `GameGuardPipe` / the ProgramData path).
+**Type consistency:** `HashedCode`, `CloveParentalGuardConfig`, `PipeRequest`/`PipeResponse`, `LockManager`, `UnlockHandler`, `ProcessScanner`, `IProcessProvider`/`IProcessKiller`, `HostsFileApplier` signatures are used identically across producing and consuming tasks. Pipe name `CloveParentalGuardPipe` and config path are centralized (Agent uses literals matching `Constants`; both equal `CloveParentalGuardPipe` / the ProgramData path).

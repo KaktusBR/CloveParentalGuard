@@ -1,4 +1,4 @@
-# GameGuard — Modern UI/UX Pass
+# CloveParentalGuard — Modern UI/UX Pass
 
 **Date:** 2026-06-30
 **Scope:** UI only. No backend, protocol, or enforcement changes. The 36 existing tests stay green.
@@ -48,7 +48,7 @@ then closes.
 ### Setup window (`SetupForm`)
 ~480×440. Controller glyph header, subtitle, two rounded code fields (code + confirm), accent
 **Install/Update** pill + secondary **Uninstall**. On success the content **swaps to a success state**:
-green check, "GameGuard is protecting this PC", helper line, **Done** button. Errors/in-progress shown
+green check, "CloveParentalGuard is protecting this PC", helper line, **Done** button. Errors/in-progress shown
 clearly (larger status text, danger color on failure). Privileged work still runs via the existing
 self-elevated `--install` / `--uninstall` relaunch.
 
@@ -69,5 +69,5 @@ Core, Worker, Installer, PipeServer/PipeClient/protocol, LockManager, BlockEvent
 
 ## Verification
 
-Logic unchanged → run `dotnet test` (expect 36 green) and `Build-GameGuard.ps1`, then exercise the
+Logic unchanged → run `dotnet test` (expect 36 green) and `Build-CloveParentalGuard.ps1`, then exercise the
 three windows by running the app. No new unit tests (nothing testable changed).

@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Single source of truth for the app version; keep in sync with the git tag (v0.1.0). -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>
