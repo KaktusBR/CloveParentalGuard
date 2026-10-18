@@ -1,3 +1,3 @@
 namespace CloveParentalGuard.Core;
 
-public record ProcessInfo(int Pid, string Name, string? Path);
+public record ProcessInfo(int Pid, string Name, string? Path, string? CommandLine = null);

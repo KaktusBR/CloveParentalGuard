@@ -5,8 +5,15 @@ namespace CloveParentalGuard.Core;
 
 public static class BlocklistMatcher
 {
-    public static bool IsBlocked(string processName, string? executablePath, CloveParentalGuardConfig config)
+    public static bool IsBlocked(string processName, string? executablePath, CloveParentalGuardConfig config,
+        string? commandLine = null)
     {
+        if (!string.IsNullOrEmpty(commandLine))
+            foreach (var fragment in config.BlockedCommandLines)
+                if (fragment.Length > 0
+                    && commandLine.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
         var name = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             ? processName
             : processName + ".exe";

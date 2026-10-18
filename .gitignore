@@ -13,3 +13,8 @@ publish/
 
 # Local Claude Code tooling config (not part of the project)
 CLAUDE.md
+
+# Signing keys: never commit private keys
+*.key.pem
+*.pem
+.cloveparentalguard/

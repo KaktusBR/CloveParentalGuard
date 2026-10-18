@@ -8,4 +8,6 @@ public static class Constants
     public static readonly string HostsPath =
         Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\drivers\etc\hosts");
     public static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan BlocklistRefreshInterval = TimeSpan.FromHours(6);
+    public static string DataDir => System.IO.Path.GetDirectoryName(ConfigPath)!;
 }

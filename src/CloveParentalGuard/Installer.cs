@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -245,12 +246,34 @@ static class Installer
     private static void WriteConfig(string? codeJson)
     {
         Directory.CreateDirectory(ProgramDataDir);
+        LockDownDataDir();
         CloveParentalGuardConfig cfg;
         try { cfg = ConfigStore.Load(Constants.ConfigPath); }
         catch { cfg = CloveParentalGuardConfig.Default(); }
         if (!string.IsNullOrWhiteSpace(codeJson))
             cfg.Code = JsonSerializer.Deserialize<HashedCode>(codeJson);
         ConfigStore.Save(Constants.ConfigPath, cfg);
+    }
+
+    /// <summary>
+    /// Only SYSTEM and Administrators may touch the data folder. Standard users get no access at
+    /// all: that keeps the cached blocklist from being swapped and the parent-code hash from being
+    /// read for offline guessing. (Nothing in a user session needs these files; the tray agent
+    /// talks to the service over the named pipe.)
+    /// </summary>
+    private static void LockDownDataDir()
+    {
+        try
+        {
+            var sec = new DirectorySecurity();
+            sec.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            var flags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            foreach (var sid in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
+                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid, null),
+                    FileSystemRights.FullControl, flags, PropagationFlags.None, AccessControlType.Allow));
+            new DirectoryInfo(ProgramDataDir).SetAccessControl(sec);
+        }
+        catch (Exception ex) { Log("data folder lock-down failed: " + ex); }
     }
 
     private static void RegisterLogonTask()

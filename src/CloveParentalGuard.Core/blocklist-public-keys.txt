@@ -1,0 +1,5 @@
+# Public keys (base64 SubjectPublicKeyInfo, one per line) that may sign the online blocklist.
+# Public keys are safe to commit. Private keys must never leave the owner's PC.
+# Add the primary and the offline backup key here (see the README, "Signing the blocklist").
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZtkPzQj40tHjLCQZrVdDIeWABmzqmQ9JwPDm47NouHw8OM+sLHA5FUp7tQjCqVSU0NKe537mERDNlAZQr1MukQ==
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5O7CxlbgLSXNY9xpr4Pxz3oPogmkCBEN+Hrzzz0LKvB/NifIav6C+grRiXYF1ls2oBm6TD66f0vqhZzxFP7kGw==

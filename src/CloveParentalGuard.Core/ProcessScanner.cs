@@ -23,7 +23,9 @@ public class ProcessScanner
         var killed = new List<ProcessInfo>();
         foreach (var p in _provider.GetProcesses())
         {
-            if (!BlocklistMatcher.IsBlocked(p.Name, p.Path, cfg)) continue;
+            if (!BlocklistMatcher.IsBlocked(p.Name, p.Path, cfg, p.CommandLine)) continue;
+            // Last line of defence, whatever the lists say: never kill Windows or ourselves.
+            if (ProtectedZones.IsProtectedImagePath(p.Path)) continue;
             try { _killer.Kill(p.Pid); killed.Add(p); }
             catch { /* process may have exited or be protected; ignore */ }
         }

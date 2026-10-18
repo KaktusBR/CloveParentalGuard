@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The repo's blocklist.json is the built-in fallback; one source of truth. -->
+    <EmbeddedResource Include="..\..\blocklist.json" LogicalName="blocklist.json" />
+    <EmbeddedResource Include="blocklist-public-keys.txt" LogicalName="blocklist-public-keys.txt" />
+  </ItemGroup>
+
 </Project>
