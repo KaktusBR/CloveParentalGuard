@@ -169,14 +169,16 @@ public class SetupForm : Form
             return;
         }
 
-        string? hashFile = null;
-        if (code.Length > 0)
-        {
-            hashFile = Path.Combine(Path.GetTempPath(), $"gg-{Guid.NewGuid():N}.tmp");
-            File.WriteAllText(hashFile, JsonSerializer.Serialize(CodeHasher.Hash(code)));
-        }
-
-        var args = hashFile is null ? new[] { "--install" } : new[] { "--install", hashFile };
+        // The hash goes to the elevated process on its command line (base64 JSON), not via
+        // a file: a file in the user's temp folder could be swapped before the elevated read.
+        var args = code.Length == 0
+            ? new[] { "--install" }
+            : new[]
+            {
+                "--install",
+                Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+                    JsonSerializer.Serialize(CodeHasher.Hash(code)))),
+            };
         RunElevated(args, installed ? "Updating…" : "Installing…", () =>
         {
             Installer.StartAgentInteractive();

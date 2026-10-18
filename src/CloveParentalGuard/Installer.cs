@@ -72,8 +72,8 @@ static class Installer
 
     // ---- elevated steps ---------------------------------------------------
 
-    /// <param name="codeHashFile">Optional temp file holding the JSON-serialized hashed parent code written by setup.</param>
-    public static int RunInstall(string? codeHashFile)
+    /// <param name="codeHashArg">Optional base64 of the JSON-serialized hashed parent code, passed by setup on the command line.</param>
+    public static int RunInstall(string? codeHashArg)
     {
         try
         {
@@ -94,10 +94,12 @@ static class Installer
                 CopyWithRetry(src, InstalledExe);
 
             string? codeJson = null;
-            if (codeHashFile is { Length: > 0 } && File.Exists(codeHashFile))
+            if (codeHashArg is { Length: > 0 })
             {
-                codeJson = File.ReadAllText(codeHashFile).Trim();
-                try { File.Delete(codeHashFile); } catch { /* best effort */ }
+                // Must decode to a well-formed hash, otherwise refuse to install.
+                codeJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(codeHashArg));
+                if (JsonSerializer.Deserialize<HashedCode>(codeJson) is null)
+                    throw new InvalidDataException("invalid code hash argument");
             }
             WriteConfig(codeJson);
 
