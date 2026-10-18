@@ -9,10 +9,11 @@ static class TrayApp
 {
     private const string PipeName = "GameGuardPipe";
     private static readonly TimeSpan PopCooldown = TimeSpan.FromSeconds(30);
-    private static readonly int[] WarnThresholds = { 300, 120 }; // seconds remaining, descending
+    private static readonly int[] WarnThresholds = { 600, 300, 60 }; // seconds remaining, descending
 
     public static void Run()
     {
+        RegisterToastApp();
         var client = new PipeClient(PipeName);
         var fallbackDurations = new List<int> { 30, 60, 120, 180 };
 
@@ -69,7 +70,38 @@ static class TrayApp
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(unlockItem);
         menu.Items.Add(exitItem);
-        menu.Opening += (_, _) => header.Text = StatusLine(client);
+        // While the menu is open, tick the header every second against a local deadline
+        // so the countdown is live without hammering the service.
+        DateTime? menuDeadline = null;
+        var menuTick = new System.Windows.Forms.Timer { Interval = 1000 };
+        menuTick.Tick += (_, _) =>
+        {
+            if (menuDeadline is not DateTime end) return;
+            var left = (int)Math.Ceiling((end - DateTime.UtcNow).TotalSeconds);
+            header.Text = left > 0
+                ? $"GameGuard — unlocked, {Clock(left)} left"
+                : "GameGuard — games are locked";
+        };
+        menu.Opening += (_, _) =>
+        {
+            try
+            {
+                var s = client.Send(new PipeRequest("status"));
+                menuDeadline = !s.IsLocked && s.RemainingSeconds > 0
+                    ? DateTime.UtcNow.AddSeconds(s.RemainingSeconds)
+                    : null;
+                header.Text = menuDeadline is null
+                    ? Describe(s)
+                    : $"GameGuard — unlocked, {Clock(s.RemainingSeconds)} left";
+            }
+            catch
+            {
+                menuDeadline = null;
+                header.Text = "Service offline";
+            }
+            menuTick.Start();
+        };
+        menu.Closed += (_, _) => menuTick.Stop();
         tray.ContextMenuStrip = menu;
 
         // Left-click also pops the menu. Reuse NotifyIcon's own private ShowContextMenu
@@ -111,14 +143,18 @@ static class TrayApp
                         if (s.RemainingSeconds <= t) warned.Add(t);
                 }
 
-                // Heads-up toasts as remaining time crosses each threshold (5 min, then 2 min).
+                // Heads-up toasts as remaining time crosses each threshold (10, 5, then 1 min).
                 if (!s.IsLocked && s.RemainingSeconds > 0)
                 {
+                    // Time went back up (unlock extended): re-arm thresholds that are ahead again.
+                    warned.RemoveWhere(t => s.RemainingSeconds > t);
+
                     foreach (var t in WarnThresholds)
                         if (s.RemainingSeconds <= t && warned.Add(t))
                         {
                             Notify(tray, "Heads up",
-                                $"About {t / 60} minutes of game time left.", ToolTipIcon.Warning);
+                                $"{(t == 60 ? "1 minute" : $"{t / 60} minutes")} of game time left " +
+                                $"(until {Until(s.RemainingSeconds)}).", ToolTipIcon.Warning);
                             break; // at most one heads-up per poll
                         }
                 }
@@ -161,8 +197,36 @@ static class TrayApp
             ? "GameGuard — games are locked"
             : $"GameGuard — unlocked, {Remaining(s.RemainingSeconds)} left (until {Until(s.RemainingSeconds)})";
 
+    private const string ToastAppId = "GameGuard";
+
+    // Windows only shows toasts for apps it knows. An unpackaged exe registers a
+    // per-user AppUserModelId (name shown on the toast) once; it is cheap to repeat.
+    private static void RegisterToastApp()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                @"Software\Classes\AppUserModelId\" + ToastAppId);
+            key.SetValue("DisplayName", "GameGuard");
+        }
+        catch { /* toasts fall back to tray balloons */ }
+    }
+
     private static void Notify(NotifyIcon tray, string title, string text, ToolTipIcon icon)
     {
+        try
+        {
+            var xml = new Windows.Data.Xml.Dom.XmlDocument();
+            xml.LoadXml("<toast><visual><binding template=\"ToastGeneric\">" +
+                        $"<text>{System.Security.SecurityElement.Escape(title)}</text>" +
+                        $"<text>{System.Security.SecurityElement.Escape(text)}</text>" +
+                        "</binding></visual></toast>");
+            Windows.UI.Notifications.ToastNotificationManager.CreateToastNotifier(ToastAppId)
+                .Show(new Windows.UI.Notifications.ToastNotification(xml));
+            return;
+        }
+        catch { /* fall back to a tray balloon */ }
+
         tray.BalloonTipTitle = title;
         tray.BalloonTipText = text;
         tray.BalloonTipIcon = icon;
@@ -177,6 +241,12 @@ static class TrayApp
         var m = (int)Math.Round(seconds / 60.0);
         return m >= 60 && m % 60 == 0 ? $"{m / 60} hour(s)" : $"{m} minutes";
     }
+
+    // Live countdown for the menu header: "42:07" or "1:05:09".
+    private static string Clock(int seconds) =>
+        seconds >= 3600
+            ? $"{seconds / 3600}:{seconds % 3600 / 60:00}:{seconds % 60:00}"
+            : $"{seconds / 60}:{seconds % 60:00}";
 
     // Compact remaining time for the tray tooltip: "45 sec", "42 min", "1h 05m".
     private static string Remaining(int seconds)

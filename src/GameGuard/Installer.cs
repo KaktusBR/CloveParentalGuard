@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text.Json;
+using Microsoft.Win32;
 using GameGuard.Core;
 using GameGuard.Service;
 
@@ -34,7 +35,9 @@ static class Installer
 
     public static bool ServiceExists() => Run("sc.exe", $"query {ServiceName}") == 0;
 
-    public static bool IsInstalled() => File.Exists(InstalledExe);
+    // The service is the source of truth: uninstall leaves the exe behind, so a
+    // leftover file alone must not read as "installed".
+    public static bool IsInstalled() => File.Exists(InstalledExe) && ServiceExists();
 
     // ---- elevation bridge (called from the unelevated setup window) -------
 
@@ -108,6 +111,7 @@ static class Installer
             Run("sc.exe", $"start {ServiceName}");
 
             RegisterLogonTask();
+            RegisterAppEntry();
             return 0;
         }
         catch (Exception ex)
@@ -176,9 +180,14 @@ static class Installer
             RunList("schtasks.exe", "/Delete", "/TN", TaskName, "/F");
             KillInstalledAgents(); // remove the tray icon immediately
             CleanHosts();
+            try { Registry.LocalMachine.DeleteSubKeyTree(UninstallKey, throwOnMissingSubKey: false); }
+            catch (Exception ex) { Log("app entry cleanup failed: " + ex); }
             try { if (Directory.Exists(ProgramDataDir)) Directory.Delete(ProgramDataDir, recursive: true); }
             catch (Exception ex) { Log("config cleanup failed: " + ex); }
-            // The installed exe is left in place — it cannot delete its own running image.
+            // This process (or the setup window) may be running from InstallDir, so it cannot
+            // delete its own image. Hand the folder to a detached helper that retries
+            // until the exe is released.
+            ScheduleInstallDirDelete();
             return 0;
         }
         catch (Exception ex)
@@ -189,6 +198,45 @@ static class Installer
     }
 
     // ---- helpers ----------------------------------------------------------
+
+    private static void ScheduleInstallDirDelete()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c for /l %i in (1,1,30) do @(" +
+                            $"rmdir /s /q \"{InstallDir}\" 2>nul & " +
+                            $"if not exist \"{InstallDir}\" exit /b & " +
+                            "ping -n 3 127.0.0.1 >nul)",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch (Exception ex) { Log("install dir cleanup failed: " + ex); }
+    }
+
+    private const string UninstallKey =
+        @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GameGuard";
+
+    /// <summary>Lists GameGuard under Settings → Installed apps. Uninstall opens the setup
+    /// window from the Program Files copy, so it works even if the original download is gone.</summary>
+    private static void RegisterAppEntry()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.CreateSubKey(UninstallKey);
+            key.SetValue("DisplayName", "GameGuard");
+            key.SetValue("Publisher", "KaktusBR");
+            key.SetValue("DisplayIcon", InstalledExe);
+            key.SetValue("InstallLocation", InstallDir);
+            key.SetValue("UninstallString", $"\"{InstalledExe}\"");
+            key.SetValue("NoModify", 1, RegistryValueKind.DWord);
+            key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+        }
+        catch (Exception ex) { Log("app entry failed: " + ex); }
+    }
 
     private static void WriteConfig(string? codeJson)
     {

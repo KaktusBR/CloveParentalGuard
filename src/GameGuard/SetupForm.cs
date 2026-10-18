@@ -198,6 +198,13 @@ public class SetupForm : Form
             _code.Clear(); _confirm.Clear();
             RefreshState();
             Status("GameGuard has been removed.", Theme.Secondary);
+            // Running from the installed copy: close so its folder can be deleted.
+            if (string.Equals(Environment.ProcessPath, Installer.InstalledExe,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("GameGuard has been removed.", "GameGuard");
+                Close();
+            }
         });
     }
 
